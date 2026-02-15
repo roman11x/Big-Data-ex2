@@ -59,16 +59,18 @@ public class App {
         Dataset<Row> genreDiversity = getGenreDiversity(explodedGenres);
         saveResult(genreDiversity, "output/task6_genre_diversity");
 
-        // ---------------------------------------------------------
-    // Task 8: Comparing TV Shows and Movies (Overall Summary)
-    // ---------------------------------------------------------
-        Dataset<Row> overallSummary = getOverallTvVsMovies(cleanedData);
+        // Stage 4: Deduplicated works with valid ratings/votes — shared by Tasks 8 & 10
+        // Filter out nulls and deduplicate by (title, type, year) once,
+        // avoiding redundant shuffles across both tasks.
+        Dataset<Row> validRatedWorks = getDeduplicatedWorks(cleanedData);
+        validRatedWorks.cache(); // Cache — branching point for Tasks 8 & 10
+
+        // Task 8: Overall summary
+        Dataset<Row> overallSummary = getOverallTvVsMovies(validRatedWorks);
         saveResult(overallSummary, "output/task8_tv_vs_movies_summary");
 
-// ---------------------------------------------------------
-// Task 10: Trends in Popularity Over Time
-// ---------------------------------------------------------
-        Dataset<Row> trendsByYear = getTvVsMoviesTrends(cleanedData);
+        // Task 10: Trends over time
+        Dataset<Row> trendsByYear = getTvVsMoviesTrends(validRatedWorks);
         saveResult(trendsByYear, "output/task10_tv_vs_movies_trends");
 
         spark.stop();
@@ -221,29 +223,41 @@ public class App {
     }
 
     /**
-     * Task 8: Comparing TV Shows and Movies — Overall Summary
+     * SHARED HELPER: Filters and deduplicates works for TV vs Movie comparison.
+     * Used by Tasks 8 and 10 to avoid repeating the same filter + window shuffle.
      *
-     * Computes aggregate statistics (average rating, average votes, total votes,
-     * count) for Movies vs TV Shows across the entire dataset.
-     *
-     * Deduplication ensures each unique work is counted once, preventing
-     * inflated vote totals from duplicate rows.
+     * Strategy:
+     * - Requires non-null rating AND votes for meaningful aggregation.
+     * - Deduplicates by (title, type, year), keeping the highest-rated entry.
+     *   This prevents inflated vote totals from duplicate rows (e.g. "Vagabond"
+     *   appearing twice) while preserving distinct works that share a title
+     *   (e.g. a Movie and a TV Show with the same name).
      */
-    private static Dataset<Row> getOverallTvVsMovies(Dataset<Row> df) {
-        // Filter: need both rating and votes for a meaningful comparison
-        Dataset<Row> valid = df.filter(col("rating").isNotNull().and(col("votes").isNotNull()));
+    private static Dataset<Row> getDeduplicatedWorks(Dataset<Row> df) {
+        Dataset<Row> valid = df.filter(
+                col("rating").isNotNull().and(col("votes").isNotNull()));
 
-        // Deduplicate by (title, type, year) — keep highest-rated entry
         WindowSpec dedupWindow = Window
                 .partitionBy("title", "type", "year")
                 .orderBy(col("rating").desc(), col("votes").desc());
 
-        Dataset<Row> distinct = valid
+        return valid
                 .withColumn("rank", row_number().over(dedupWindow))
                 .filter(col("rank").equalTo(1))
                 .drop("rank");
+    }
 
-        return distinct
+    /**
+     * Task 8: Comparing TV Shows and Movies — Overall Summary
+     *
+     * Aggregates across the entire dataset to compare Movies vs TV Shows
+     * on average rating, average votes per title, and total votes.
+     *
+     * Input: Pre-filtered and deduplicated dataset (from getDeduplicatedWorks).
+     * Output: One row per type with aggregate statistics.
+     */
+    private static Dataset<Row> getOverallTvVsMovies(Dataset<Row> deduped) {
+        return deduped
                 .groupBy("type")
                 .agg(
                         count("*").alias("count"),
@@ -258,29 +272,15 @@ public class App {
      * Task 10: Comparing TV Shows and Movies — Trends Over Time
      *
      * Groups by type and year to reveal how average ratings and total votes
-     * evolved over time for Movies vs TV Shows.
+     * evolved over time. Requires non-null year for meaningful trend analysis.
      *
-     * Filters out rows missing year, rating, or votes so every year shown
-     * has meaningful aggregate values (no null rows in output).
+     * Input: Pre-filtered and deduplicated dataset (from getDeduplicatedWorks).
+     * Output: One row per (type, year) with aggregate statistics, sorted by
+     *         year descending to highlight recent trends first.
      */
-    private static Dataset<Row> getTvVsMoviesTrends(Dataset<Row> df) {
-        // Filter: need year + rating + votes for trend analysis
-        Dataset<Row> valid = df.filter(
-                col("year").isNotNull()
-                        .and(col("rating").isNotNull())
-                        .and(col("votes").isNotNull()));
-
-        // Deduplicate by (title, type, year)
-        WindowSpec dedupWindow = Window
-                .partitionBy("title", "type", "year")
-                .orderBy(col("rating").desc(), col("votes").desc());
-
-        Dataset<Row> distinct = valid
-                .withColumn("rank", row_number().over(dedupWindow))
-                .filter(col("rank").equalTo(1))
-                .drop("rank");
-
-        return distinct
+    private static Dataset<Row> getTvVsMoviesTrends(Dataset<Row> deduped) {
+        return deduped
+                .filter(col("year").isNotNull())
                 .groupBy("type", "year")
                 .agg(
                         avg("rating").alias("avg_rating"),
