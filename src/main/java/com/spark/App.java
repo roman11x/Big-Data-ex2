@@ -9,7 +9,7 @@ import static org.apache.spark.sql.functions.*;
 
 public class App {
 
-    // Constant inside the class, but outside methods
+    // Path to the IMDB dataset CSV file
     public static final String FILE_PATH = "src/main/resources/IMDB.csv";
 
     public static void main(String[] args) {
@@ -30,21 +30,43 @@ public class App {
                 .option("escape", "\"")
                 .csv(FILE_PATH);
 
+        // =====================================================================
+        // CACHING STRATEGY
+        // =====================================================================
+        // Spark uses lazy evaluation — transformations build a DAG but don't
+        // execute until an action (e.g. show(), write()) triggers computation.
+        // We cache at DAG branching points where multiple downstream tasks
+        // depend on the same intermediate result. This tells Spark to
+        // materialize and store the result in memory after the first action,
+        // so subsequent tasks reuse it instead of recomputing from the CSV.
+        //
+        // Cache points:
+        //   cleanedData     → used by Tasks 2, 4, 6, 8, 10 (root branch)
+        //   explodedGenres  → used by Tasks 2 and 6 (genre-based branch)
+        //   validRatedWorks → used by Tasks 8 and 10 (comparison branch)
+        // =====================================================================
+
+        // ---------------------------------------------------------
         // Task 1: Cleaning and Preprocessing
+        // ---------------------------------------------------------
         Dataset<Row> cleanedData = performCleaning(rawData);
-        cleanedData.cache(); // Cache — branching point for most tasks
+        cleanedData.cache(); // Cache — root branching point for all tasks
         cleanedData.show();
         saveResult(cleanedData, "output/task1_cleaned_data");
 
-        // Stage 3: Exploded genres — shared by Tasks 2 and 6
+        // ---------------------------------------------------------
+        // Shared Stage: Exploded genres (used by Tasks 2 and 6)
+        // ---------------------------------------------------------
         // Split comma-separated genres into individual rows, filter out "Unknown"
         Dataset<Row> explodedGenres = cleanedData
                 .filter(col("rating").isNotNull()) // Need ratings for genre-based analysis
                 .withColumn("genre", explode(split(col("genre"), ",\\s*")))
                 .filter(not(col("genre").equalTo("Unknown")))
-                .cache();
+                .cache(); // Cache — branching point for Tasks 2 & 6
 
+        // ---------------------------------------------------------
         // Task 2: Top Rated Movies by Genre
+        // ---------------------------------------------------------
         Dataset<Row> topRatedByGenre = getTopRatedByGenre(explodedGenres);
         saveResult(topRatedByGenre, "output/task2_top_rated_by_genre");
 
@@ -60,22 +82,32 @@ public class App {
         Dataset<Row> genreDiversity = getGenreDiversity(explodedGenres);
         saveResult(genreDiversity, "output/task6_genre_diversity");
 
-        // Stage 4: Deduplicated works with valid ratings/votes — shared by Tasks 8 & 10
+        // ---------------------------------------------------------
+        // Shared Stage: Deduplicated works (used by Tasks 8 and 10)
+        // ---------------------------------------------------------
         // Filter out nulls and deduplicate by (title, type, year) once,
         // avoiding redundant shuffles across both tasks.
         Dataset<Row> validRatedWorks = getDeduplicatedWorks(cleanedData);
         validRatedWorks.cache(); // Cache — branching point for Tasks 8 & 10
 
-        // Task 8: Overall summary
+        // ---------------------------------------------------------
+        // Task 8: Comparing TV Shows and Movies — Overall Summary
+        // ---------------------------------------------------------
         Dataset<Row> overallSummary = getOverallTvVsMovies(validRatedWorks);
         saveResult(overallSummary, "output/task8_tv_vs_movies_summary");
 
-        // Task 10: Trends over time
+        // ---------------------------------------------------------
+        // Task 10: Comparing TV Shows and Movies — Trends Over Time
+        // ---------------------------------------------------------
         Dataset<Row> trendsByYear = getTvVsMoviesTrends(validRatedWorks);
         saveResult(trendsByYear, "output/task10_tv_vs_movies_trends");
 
         spark.stop();
-    } // End of the main method
+    }
+
+    // =================================================================
+    //  TASK METHODS
+    // =================================================================
 
     /**
      * Task 1: Data Cleaning and Preprocessing
@@ -90,11 +122,9 @@ public class App {
      * - Derive a "type" column (TV Show vs Movie) from the year column BEFORE
      *   extracting the numeric year, since the range pattern (e.g. "2015–2022")
      *   is what distinguishes TV shows from movies.
+     * - Improved: Also detects TV Shows if the certificate starts with "TV"
+     *   (e.g. "TV-MA"), which catches miniseries that lack a year range.
      * - Extract the first numeric year value for consistency.
-     */
-    /**
-     *
-     * IMPROVED: Detects TV Shows if the year has a dash OR if the certificate starts with "TV".
      */
     private static Dataset<Row> performCleaning(Dataset<Row> df) {
         return df
@@ -107,17 +137,19 @@ public class App {
                         when(col("votes").rlike("^\\d+$"), col("votes").cast("int"))
                                 .otherwise(lit(null).cast("int")))
 
-                // ROBUST TYPE DETECTION:
-                // It is a TV Show if:
-                // 1. The year contains a dash (e.g. "2015-2022")
-                // 2. OR the certificate starts with "TV" (e.g. "TV-MA") -> Catches miniseries!
+                // Robust type detection:
+                // A title is classified as a TV Show if:
+                //   1. The year contains an en-dash "–" (e.g. "2015–2022"), OR
+                //   2. The certificate starts with "TV" (e.g. "TV-MA")
+                // This dual check catches miniseries that have a single year
+                // but a TV-prefixed certificate.
                 .withColumn("type",
-                        when(col("year").contains("\u2013")
+                        when(col("year").contains("\u2013")       // \u2013 = en-dash "–"
                                         .or(col("certificate").startsWith("TV")),
                                 lit("TV Show"))
                                 .otherwise(lit("Movie")))
 
-                // Extract year
+                // Extract the first numeric year from the string (e.g. "2015" from "(2015–2022)")
                 .withColumn("year", regexp_extract(col("year"), "(\\d+)", 1))
                 .withColumn("year",
                         when(col("year").equalTo(""), lit(null).cast("int"))
@@ -135,14 +167,9 @@ public class App {
      *        filtered for non-null ratings and non-"Unknown" genres.
      * Output: Top 10 movies per genre, ranked by rating then votes.
      */
-    /**
-     * Task 2: Top Rated Movies by Genre
-     */
     private static Dataset<Row> getTopRatedByGenre(Dataset<Row> explodedGenres) {
-        // Reuse the shared logic!
         Dataset<Row> distinctMovies = getUniqueMoviesPerGenre(explodedGenres);
 
-        // 3. RANK: Standard Top 10 Ranking
         WindowSpec genreWindow = Window
                 .partitionBy("genre")
                 .orderBy(col("rating").desc(), col("votes").desc());
@@ -153,54 +180,19 @@ public class App {
                 .select("genre", "rank", "title", "rating", "votes", "year")
                 .orderBy("genre", "rank");
     }
-    /**
-     * Helper method to save a Dataset to a single CSV file.
-     */
-    private static void saveResult(Dataset<Row> df, String outputPath) {
-        // coalesce(1) forces all data into a single file so it is easy to open
-        df.coalesce(1)
-                .write()
-                .option("header", "true")
-                .mode("overwrite")
-                .csv(outputPath);
 
-        System.out.println("Saved results to: " + outputPath);
-    }
-    /**
-     * SHARED HELPER: Filters for Movies and Deduplicates by Title/Genre.
-     * Used by Task 2 and Task 6 to ensure consistent, clean data.
-     */
-    private static Dataset<Row> getUniqueMoviesPerGenre(Dataset<Row> explodedGenres) {
-        // 1. FILTER: Keep only Movies
-        Dataset<Row> moviesOnly = explodedGenres
-                .filter(col("type").equalTo("Movie"));
-
-        // 2. DEDUPLICATE: Keep only the highest-rated entry per Title per Genre
-        WindowSpec titleDedupeWindow = Window
-                .partitionBy("genre", "title")
-                .orderBy(col("rating").desc(), col("votes").desc());
-
-        return moviesOnly
-                .withColumn("title_rank", row_number().over(titleDedupeWindow))
-                .filter(col("title_rank").equalTo(1)) // Keep #1
-                .drop("title_rank");
-    }
     /**
      * Task 4: High-Rated Hidden Gems
-     * Objective: Identify movies with high ratings (> 8.0) but low votes (< 10,000).
+     *
+     * Identifies movies with high ratings (> 8.0) but relatively low votes (< 10,000).
+     * These are quality titles that haven't received mainstream attention.
+     * Filters to movies only and sorts by rating desc, votes desc.
      */
     private static Dataset<Row> getHiddenGems(Dataset<Row> df) {
         return df
-                // 1. Filter: Keep only Movies (exclude TV shows)
                 .filter(col("type").equalTo("Movie"))
-
-                // 2. Filter: Rating > 8.0
                 .filter(col("rating").gt(8.0))
-
-                // 3. Filter: Votes < 10,000
                 .filter(col("votes").lt(10000))
-
-                // 4. Sort: By rating (desc) and votes (desc)
                 .orderBy(col("rating").desc(), col("votes").desc());
     }
 
@@ -227,36 +219,10 @@ public class App {
                         stddev("rating").alias("rating_stddev"),
                         min("rating").alias("min_rating"),
                         max("rating").alias("max_rating"),
-                        // Range = max - min; a simple complement to stddev
                         expr("max(rating) - min(rating)").alias("rating_range")
                 )
                 .filter(col("movie_count").gt(5))
                 .orderBy(col("rating_stddev").desc());
-    }
-
-    /**
-     * SHARED HELPER: Filters and deduplicates works for TV vs Movie comparison.
-     * Used by Tasks 8 and 10 to avoid repeating the same filter + window shuffle.
-     *
-     * Strategy:
-     * - Requires non-null rating AND votes for meaningful aggregation.
-     * - Deduplicates by (title, type, year), keeping the highest-rated entry.
-     *   This prevents inflated vote totals from duplicate rows (e.g. "Vagabond"
-     *   appearing twice) while preserving distinct works that share a title
-     *   (e.g. a Movie and a TV Show with the same name).
-     */
-    private static Dataset<Row> getDeduplicatedWorks(Dataset<Row> df) {
-        Dataset<Row> valid = df.filter(
-                col("rating").isNotNull().and(col("votes").isNotNull()));
-
-        WindowSpec dedupWindow = Window
-                .partitionBy("title", "type", "year")
-                .orderBy(col("rating").desc(), col("votes").desc());
-
-        return valid
-                .withColumn("rank", row_number().over(dedupWindow))
-                .filter(col("rank").equalTo(1))
-                .drop("rank");
     }
 
     /**
@@ -306,5 +272,68 @@ public class App {
                 .orderBy(col("year").asc(), col("type"));
     }
 
+    // =================================================================
+    //  SHARED HELPERS
+    // =================================================================
 
-} // End of class
+    /**
+     * Filters for Movies and deduplicates by Title per Genre.
+     * Used by Tasks 2 and 6 to ensure consistent, clean data.
+     *
+     * Some titles appear multiple times in the dataset (e.g. different episodes
+     * or re-releases). We keep only the highest-rated entry per title within
+     * each genre, using votes as a tiebreaker.
+     */
+    private static Dataset<Row> getUniqueMoviesPerGenre(Dataset<Row> explodedGenres) {
+        Dataset<Row> moviesOnly = explodedGenres
+                .filter(col("type").equalTo("Movie"));
+
+        WindowSpec titleDedupeWindow = Window
+                .partitionBy("genre", "title")
+                .orderBy(col("rating").desc(), col("votes").desc());
+
+        return moviesOnly
+                .withColumn("title_rank", row_number().over(titleDedupeWindow))
+                .filter(col("title_rank").equalTo(1))
+                .drop("title_rank");
+    }
+
+    /**
+     * Filters and deduplicates works for TV vs Movie comparison.
+     * Used by Tasks 8 and 10 to avoid repeating the same filter + window shuffle.
+     *
+     * - Requires non-null rating AND votes for meaningful aggregation.
+     * - Deduplicates by (title, type, year), keeping the highest-rated entry.
+     *   This prevents inflated vote totals from duplicate rows (e.g. "Vagabond"
+     *   appearing twice) while preserving distinct works that share a title
+     *   (e.g. a Movie and a TV Show with the same name).
+     */
+    private static Dataset<Row> getDeduplicatedWorks(Dataset<Row> df) {
+        Dataset<Row> valid = df.filter(
+                col("rating").isNotNull().and(col("votes").isNotNull()));
+
+        WindowSpec dedupWindow = Window
+                .partitionBy("title", "type", "year")
+                .orderBy(col("rating").desc(), col("votes").desc());
+
+        return valid
+                .withColumn("rank", row_number().over(dedupWindow))
+                .filter(col("rank").equalTo(1))
+                .drop("rank");
+    }
+
+    /**
+     * Saves a Dataset to a single CSV file.
+     * coalesce(1) merges all partitions into one file for easy inspection.
+     */
+    private static void saveResult(Dataset<Row> df, String outputPath) {
+        df.coalesce(1)
+                .write()
+                .option("header", "true")
+                .mode("overwrite")
+                .csv(outputPath);
+
+        System.out.println("Saved results to: " + outputPath);
+    }
+
+}
