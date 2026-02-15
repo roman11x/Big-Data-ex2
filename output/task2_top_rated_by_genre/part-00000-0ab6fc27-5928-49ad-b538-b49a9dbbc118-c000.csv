@@ -1,0 +1,259 @@
+genre,rank,title,rating,votes,year
+Action,1,Vagabond,9.3,187,2019
+Action,2,The Lord of the Rings: The Return of the King,9.0,1819157,2003
+Action,3,The Lord of the Rings: The Fellowship of the Ring,8.8,1844075,2001
+Action,4,The Lord of the Rings: The Two Towers,8.8,1642708,2002
+Action,5,Chen qing ling,8.8,6380,2019
+Action,6,Hotel Del Luna,8.8,127,2019
+Action,7,Lastman,8.6,985,2016
+Action,8,Gladiator,8.5,1481531,2000
+Action,9,Léon: The Professional,8.5,1147345,1994
+Action,10,Princess Mononoke,8.4,390689,1997
+Adventure,1,Elesin Oba: The King's Horseman,9.4,72,2022
+Adventure,2,The Lord of the Rings: The Return of the King,9.0,1819157,2003
+Adventure,3,The Lord of the Rings: The Fellowship of the Ring,8.8,1844075,2001
+Adventure,4,The Lord of the Rings: The Two Towers,8.8,1642708,2002
+Adventure,5,Chen qing ling,8.8,6380,2019
+Adventure,6,Spirited Away,8.6,751180,2001
+Adventure,7,Lastman,8.6,985,2016
+Adventure,8,Gladiator,8.5,1481531,2000
+Adventure,9,Princess Mononoke,8.4,390689,1997
+Adventure,10,Beyblade Burst Surge,8.4,38,2021
+Animation,1,Spirited Away,8.6,751180,2001
+Animation,2,Lastman,8.6,985,2016
+Animation,3,Princess Mononoke,8.4,390689,1997
+Animation,4,Your Name.,8.4,262352,2016
+Animation,5,Beyblade Burst Surge,8.4,38,2021
+Animation,6,Violet Evergarden: The Movie,8.3,6641,2020
+Animation,7,Rimba Racer,8.3,77,2017
+Animation,8,Voltron 84,8.3,60,2017
+Animation,9,Gekijouban Shimajirou no wao!: Shimajirou to kujira no uta,8.3,22,2014
+Animation,10,Howl's Moving Castle,8.2,390278,2004
+Biography,1,David Attenborough: A Life on Our Planet,8.9,32001,2020
+Biography,2,Be Here Now,8.5,3417,2015
+Biography,3,Lawrence of Arabia,8.3,292337,1962
+Biography,4,Major,8.2,25431,2022
+Biography,5,The Crash Reel,8.2,4890,2013
+Biography,6,A Man Called Ahok,8.2,4326,2018
+Biography,7,India's Daughter,8.2,2127,2015
+Biography,8,Hachi: A Dog's Tale,8.1,283263,2009
+Biography,9,The Dawn Wall,8.1,19774,2017
+Biography,10,Requiem for the American Dream,8.1,9838,2015
+Comedy,1,CM101MMXI Fundamentals,9.1,46282,2013
+Comedy,2,Surau dan Silek,9.0,71,2017
+Comedy,3,The Umbilical Brothers: The Rehearsal,8.9,15,2014
+Comedy,4,Hotel Del Luna,8.8,127,2019
+Comedy,5,Dave Chappelle,8.7,2851,2017
+Comedy,6,Norm Macdonald Has a Show,8.5,3643,2018
+Comedy,7,Bill Hicks: Revelations,8.5,3109,1993
+Comedy,8,Bill Hicks: Relentless,8.5,2555,1992
+Comedy,9,Ngeri-Ngeri Sedap,8.5,778,2022
+Comedy,10,Mandela,8.4,7055,2021
+Crime,1,Flower of Evil,8.7,7700,2020
+Crime,2,The Departed,8.5,1310171,2006
+Crime,3,Léon: The Professional,8.5,1147345,1994
+Crime,4,Signal,8.5,7068,2016
+Crime,5,To Kill a Mockingbird,8.3,315380,1962
+Crime,6,Tunnel,8.3,2940,2017
+Crime,7,Live,8.3,1323,2018
+Crime,8,Kill Bill: Vol. 1,8.2,1103348,2003
+Crime,9,Taxi Driver,8.2,819599,1976
+Crime,10,Inside Job,8.2,75659,2010
+Documentary,1,CM101MMXI Fundamentals,9.1,46282,2013
+Documentary,2,Hans Zimmer Live in Prague,9.1,2710,2017
+Documentary,3,David Attenborough: A Life on Our Planet,8.9,32001,2020
+Documentary,4,Greatest Events of WWII in Colour,8.7,8906,2019
+Documentary,5,Dave Chappelle,8.7,2851,2017
+Documentary,6,Untitled Kanye West Documentary,8.6,1041,2022
+Documentary,7,In Our Mothers' Gardens,8.6,141,2021
+Documentary,8,Ella Brennan: Commanding the Table,8.6,66,2016
+Documentary,9,Be Here Now,8.5,3417,2015
+Documentary,10,Bill Hicks: Revelations,8.5,3109,1993
+Drama,1,Elesin Oba: The King's Horseman,9.4,72,2022
+Drama,2,The Lord of the Rings: The Return of the King,9.0,1819157,2003
+Drama,3,Surau dan Silek,9.0,71,2017
+Drama,4,Chief of Staff,8.9,15,2019
+Drama,5,The Lord of the Rings: The Fellowship of the Ring,8.8,1844075,2001
+Drama,6,The Lord of the Rings: The Two Towers,8.8,1642708,2002
+Drama,7,Chen qing ling,8.8,6380,2019
+Drama,8,Hotel Del Luna,8.8,127,2019
+Drama,9,A Love to Last,8.8,38,2017
+Drama,10,La Grande Chaumière Violette,8.6,16,2016
+Family,1,Surau dan Silek,9.0,71,2017
+Family,2,A Love to Last,8.8,38,2017
+Family,3,Spirited Away,8.6,751180,2001
+Family,4,Project Mc2 New Years Eve Countdown 2016,8.4,24,2016
+Family,5,My Name Is Barbra,8.3,364,1965
+Family,6,Gekijouban Shimajirou no wao!: Shimajirou to kujira no uta,8.3,22,2014
+Family,7,Howl's Moving Castle,8.2,390278,2004
+Family,8,Father Is Strange,8.2,558,2017
+Family,9,Julie's Greenroom,8.2,331,2017
+Family,10,My Neighbor Totoro,8.1,335557,1988
+Fantasy,1,Signal,8.5,7068,2016
+Fantasy,2,Your Name.,8.4,262352,2016
+Fantasy,3,While You Were Sleeping,8.3,7318,2017
+Fantasy,4,Violet Evergarden: The Movie,8.3,6641,2020
+Fantasy,5,Tunnel,8.3,2940,2017
+Fantasy,6,Ashes of Love,8.3,2076,2018
+Fantasy,7,Chicago Typewriter,8.3,1796,2017
+Fantasy,8,Monty Python and the Holy Grail,8.2,538546,1975
+Fantasy,9,18 Again,8.2,1889,2020
+Fantasy,10,Go Back Couple,8.2,1132,2017
+Film-Noir,1,Touch of Evil,8.0,104511,1958
+Film-Noir,2,Sudden Fear,7.5,6427,1952
+Film-Noir,3,The Stranger,7.3,26705,1946
+Film-Noir,4,The Big Combo,7.3,7696,1955
+Film-Noir,5,He Walked by Night,7.1,6083,1948
+Film-Noir,6,Lured,7.0,3811,1947
+Film-Noir,7,"Sleep, My Love",6.8,1827,1948
+Film-Noir,8,The Sleeping City,6.7,638,1950
+Film-Noir,9,The Killer Is Loose,6.6,2137,1956
+Film-Noir,10,Dragnet,6.6,1041,1954
+Game-Show,1,Win the Wilderness: Alaska,6.9,767,2020
+Game-Show,2,The Big Fat Quiz of the Year,6.8,120,2021
+Game-Show,3,Flinch,4.3,732,2019
+Game-Show,4,Escape the Undertaker,4.2,949,2021
+Game-Show,5,Exatlon Turkey (2020),3.9,549,2020
+History,1,Elesin Oba: The King's Horseman,9.4,72,2022
+History,2,Greatest Events of WWII in Colour,8.7,8906,2019
+History,3,La Grande Chaumière Violette,8.6,16,2016
+History,4,Nazi Concentration Camps,8.3,1481,1945
+History,5,Empresses in the Palace,8.3,357,2015
+History,6,Zeitgeist: Addendum,8.2,18368,2008
+History,7,My Country: The New Age,8.2,1961,2019
+History,8,Tree with Deep Roots,8.2,513,2011
+History,9,Pit Sawat,8.2,35,2016
+History,10,Zeitgeist,8.1,49587,2007
+Horror,1,Rosemary's Baby,8.0,215114,1968
+Horror,2,American Psycho,7.6,598117,2000
+Horror,3,The Incredible Shrinking Man,7.6,18215,1957
+Horror,4,Stree,7.5,33919,2018
+Horror,5,Nini Thowok,7.5,57,2018
+Horror,6,It,7.3,537240,2017
+Horror,7,Croaker,7.3,74,2013
+Horror,8,Pee Mak,7.2,5828,2013
+Horror,9,Crazyhead,7.2,5075,2016
+Horror,10,Don't Breathe,7.1,272361,2016
+Music,1,Hans Zimmer Live in Prague,9.1,2710,2017
+Music,2,A Love to Last,8.8,38,2017
+Music,3,Untitled Kanye West Documentary,8.6,1041,2022
+Music,4,My Name Is Barbra,8.3,364,1965
+Music,5,Hikaru Utada: Laughter in the Dark Tour 2018,8.3,93,2019
+Music,6,Alive Inside: A Story of Music and Memory,8.2,3146,2014
+Music,7,Tim Minchin So F**king Rock,8.1,297,2008
+Music,8,Color Me Barbra,8.0,306,1966
+Music,9,Arashi's Diary: Voyage,8.0,45,2019
+Music,10,Artifact,7.9,4637,2012
+Musical,1,Julie's Greenroom,8.2,331,2017
+Musical,2,Willy Wonka & the Chocolate Factory,7.8,200703,1971
+Musical,3,Monty Python Live (Mostly),7.6,2634,2014
+Musical,4,"tick, tick... BOOM!",7.5,103537,2021
+Musical,5,Yeh Ballet,7.5,1356,2020
+Musical,6,The Ballad of Buster Scruggs,7.3,146391,2018
+Musical,7,Grease,7.2,275313,1978
+Musical,8,Behind the Curtain: Todrick Hall,6.8,312,2017
+Musical,9,Hairspray,6.7,130694,2007
+Musical,10,Dreamgirls,6.6,74022,2006
+Mystery,1,Vagabond,9.3,187,2019
+Mystery,2,Flower of Evil,8.7,7700,2020
+Mystery,3,Tales of the City,8.3,4085,1993
+Mystery,4,Article 15,8.2,33653,2019
+Mystery,5,Defendant,8.2,1553,2017
+Mystery,6,The Deadly Affair,8.2,17,2022
+Mystery,7,Gone Girl,8.1,971322,2014
+Mystery,8,Kahaani,8.1,62937,2012
+Mystery,9,Doctor John,8.1,1471,2019
+Mystery,10,Glass Onion: A Knives Out Mystery,8.1,548,2022
+News,1,Alive Inside: A Story of Music and Memory,8.2,3146,2014
+News,2,Requiem for the American Dream,8.1,9838,2015
+News,3,Honor Diaries,7.8,239,2013
+News,4,SunGanges,7.8,86,2019
+News,5,Neurons to Nirvana,7.6,1263,2013
+News,6,An Inconvenient Truth,7.4,83432,2006
+News,7,Sustainable,7.3,573,2016
+News,8,71st Golden Globe Awards,7.2,912,2014
+News,9,Capital C,6.7,274,2014
+News,10,Hank: 5 Years from the Brink,6.6,499,2013
+Reality-TV,1,The Mosque Next Door,7.7,44,2017
+Reality-TV,2,Derren Brown: Infamous,7.5,263,2014
+Reality-TV,3,The Apprentice: ONE Championship Edition,7.5,133,2021
+Reality-TV,4,First Team: Juventus,7.2,2107,2018
+Reality-TV,5,Sergio over de grens,7.2,6,2022
+Reality-TV,6,Dancing Queen,7.0,1630,2018
+Reality-TV,7,Cabins in the Wild with Dick Strawbridge,6.7,279,2017
+Reality-TV,8,Styling Hollywood,6.6,369,2019
+Reality-TV,9,Fate: The Winx Saga - The Afterparty,6.2,83,2021
+Reality-TV,10,Model,5.9,26,2020
+Romance,1,Flower of Evil,8.7,7700,2020
+Romance,2,U-Prince: The Playful Comm-Arts,8.6,24,2016
+Romance,3,Once Again,8.4,338,2020
+Romance,4,Tales of the City,8.3,4085,1993
+Romance,5,Ashes of Love,8.3,2076,2018
+Romance,6,Chicago Typewriter,8.3,1796,2017
+Romance,7,Empresses in the Palace,8.3,357,2015
+Romance,8,The 1st Shop of Coffee Prince,8.2,5541,2007
+Romance,9,Go Back Couple,8.2,1132,2017
+Romance,10,Secret Unrequited Love,8.2,21,2019
+Sci-Fi,1,Sense8: Creating the World,8.5,2690,2015
+Sci-Fi,2,2001: A Space Odyssey,8.3,662697,1968
+Sci-Fi,3,Voltron 84,8.3,60,2017
+Sci-Fi,4,Jurassic Park,8.2,978402,1993
+Sci-Fi,5,Reset,8.1,619,2022
+Sci-Fi,6,Planet of the Apes,8.0,179986,1968
+Sci-Fi,7,Nausicaä of the Valley of the Wind,8.0,168797,1984
+Sci-Fi,8,Arrival,7.9,684855,2016
+Sci-Fi,9,Captain America: Civil War,7.8,776556,2016
+Sci-Fi,10,A Tiger in the Dark: The Decadence Saga,7.7,50,2014
+Short,1,#HappyBirthdaySense8,9.0,844,2017
+Short,2,The Sense8 Experience,8.9,800,2017
+Short,3,Sense8: Creating the World,8.5,2690,2015
+Short,4,Moving Art: Underwater,8.5,129,2015
+Short,5,Moving Art: Deserts,8.4,158,2014
+Short,6,Escape from the Spirit World,8.3,282,2007
+Short,7,Moving Art: Flowers,8.3,211,2014
+Short,8,Moving Art: Forests,8.3,203,2014
+Short,9,Moving Art: Waterfalls,8.3,96,2015
+Short,10,Fuller House Featurette,8.3,24,2016
+Sport,1,The Crash Reel,8.2,4890,2013
+Sport,2,The Dawn Wall,8.1,19774,2017
+Sport,3,Bobby Robson: More Than a Manager,8.1,3107,2018
+Sport,4,Rising Phoenix,8.1,1704,2020
+Sport,5,The Battered Bastards of Baseball,8.0,4130,2014
+Sport,6,We Are Moluccans,7.9,207,2014
+Sport,7,Undefeated,7.7,7098,2011
+Sport,8,Moneyball,7.6,420330,2011
+Sport,9,Athlete A,7.6,11138,2020
+Sport,10,CT Fletcher: My Magnificent Obsession,7.6,589,2015
+Talk-Show,1,Norm Macdonald Has a Show,8.5,3643,2018
+Talk-Show,2,La Tarotista,7.6,23,2021
+Talk-Show,3,Tudum,7.6,15,2021
+Thriller,1,Vagabond,9.3,187,2019
+Thriller,2,The Departed,8.5,1310171,2006
+Thriller,3,The Deadly Affair,8.2,17,2022
+Thriller,4,Gone Girl,8.1,971322,2014
+Thriller,5,Jaws,8.1,600404,1975
+Thriller,6,Kahaani,8.1,62937,2012
+Thriller,7,Nayattu,8.1,7255,2021
+Thriller,8,Designated Survivor: 60 Days,8.1,1326,2019
+Thriller,9,Reset,8.1,619,2022
+Thriller,10,Kill Bill: Vol. 2,8.0,749653,2004
+War,1,Greatest Events of WWII in Colour,8.7,8906,2019
+War,2,All Quiet on the Western Front,8.3,199,2022
+War,3,Zeitgeist: Addendum,8.2,18368,2008
+War,4,Virunga,8.2,11569,2014
+War,5,Wolf,8.0,7602,2018
+War,6,Nobel,8.0,6489,2016
+War,7,Black Book,7.7,77055,2006
+War,8,Nanking,7.7,3504,2007
+War,9,Welcome to Dongmakgol,7.6,7195,2005
+War,10,Nazi Death Squads,7.6,644,2009
+Western,1,Winchester '73,7.6,20016,1950
+Western,2,The Power of the Dog,6.8,169764,2021
+Western,3,Man Without a Star,6.8,3498,1955
+Western,4,The Treasure of the Silver Lake,6.8,3263,1962
+Western,5,Winnetou: The Last Shot,6.6,2612,1965
+Western,6,Destry,6.6,1465,1954
+Western,7,The Harder They Fall,6.5,61698,2021
+Western,8,Young Guns II,6.5,36404,1990
+Western,9,Geronimo: An American Legend,6.5,11903,1993
+Western,10,Winnetou: The Red Gentleman,6.5,3253,1964

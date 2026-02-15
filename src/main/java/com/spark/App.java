@@ -45,7 +45,7 @@ public class App {
 
         // Task 2: Top Rated Movies by Genre
         Dataset<Row> topRatedByGenre = getTopRatedByGenre(explodedGenres);
-        topRatedByGenre.show(100, false); // Show more rows to see multiple genres
+        saveResult(topRatedByGenre, "output/task2_top_rated_by_genre");
 
         spark.stop();
     } // End of the main method
@@ -65,26 +65,32 @@ public class App {
      *   is what distinguishes TV shows from movies.
      * - Extract the first numeric year value for consistency.
      */
+    /**
+     *
+     * IMPROVED: Detects TV Shows if the year has a dash OR if the certificate starts with "TV".
+     */
     private static Dataset<Row> performCleaning(Dataset<Row> df) {
         return df
                 // Fill missing string columns with "Unknown"
                 .na().fill("Unknown", new String[]{"certificate", "duration", "genre"})
 
-                // Clean votes: remove commas, then only cast values that are purely numeric.
-                // Empty strings or other non-numeric values become null.
+                // Clean votes: remove commas, cast to int
                 .withColumn("votes", regexp_replace(col("votes"), ",", ""))
                 .withColumn("votes",
                         when(col("votes").rlike("^\\d+$"), col("votes").cast("int"))
                                 .otherwise(lit(null).cast("int")))
 
-                // Derive type column BEFORE extracting numeric year
-                // TV shows have an en-dash (\u2013) in the year field (e.g. "2015–2022" or "2018– ")
+                // ROBUST TYPE DETECTION:
+                // It is a TV Show if:
+                // 1. The year contains a dash (e.g. "2015-2022")
+                // 2. OR the certificate starts with "TV" (e.g. "TV-MA") -> Catches miniseries!
                 .withColumn("type",
-                        when(col("year").contains("\u2013"), lit("TV Show"))
+                        when(col("year").contains("\u2013")
+                                        .or(col("certificate").startsWith("TV")),
+                                lit("TV Show"))
                                 .otherwise(lit("Movie")))
 
-                // Extract the first numeric year value.
-                // regexp_extract returns "" when no match; convert to null before casting.
+                // Extract year
                 .withColumn("year", regexp_extract(col("year"), "(\\d+)", 1))
                 .withColumn("year",
                         when(col("year").equalTo(""), lit(null).cast("int"))
@@ -103,15 +109,43 @@ public class App {
      * Output: Top 10 movies per genre, ranked by rating then votes.
      */
     private static Dataset<Row> getTopRatedByGenre(Dataset<Row> explodedGenres) {
-        // Define window: partition by genre, order by rating desc then votes desc as tiebreaker
+        // 1. FILTER: Keep only Movies
+        Dataset<Row> moviesOnly = explodedGenres
+                .filter(col("type").equalTo("Movie"));
+
+        // 2. DEDUPLICATE: Keep only the highest-rated entry per Title per Genre
+        // This effectively hides "Vagabond" episodes by collapsing them into 1 entry
+        WindowSpec titleDedupeWindow = Window
+                .partitionBy("genre", "title")
+                .orderBy(col("rating").desc(), col("votes").desc());
+
+        Dataset<Row> distinctMovies = moviesOnly
+                .withColumn("title_rank", row_number().over(titleDedupeWindow))
+                .filter(col("title_rank").equalTo(1)) // Keep #1
+                .drop("title_rank");
+
+        // 3. RANK: Standard Top 10 Ranking
         WindowSpec genreWindow = Window
                 .partitionBy("genre")
                 .orderBy(col("rating").desc(), col("votes").desc());
 
-        return explodedGenres
+        return distinctMovies
                 .withColumn("rank", row_number().over(genreWindow))
                 .filter(col("rank").leq(10))
                 .select("genre", "rank", "title", "rating", "votes", "year")
                 .orderBy("genre", "rank");
+    }
+    /**
+     * Helper method to save a Dataset to a single CSV file.
+     */
+    private static void saveResult(Dataset<Row> df, String outputPath) {
+        // coalesce(1) forces all data into a single file so it is easy to open
+        df.coalesce(1)
+                .write()
+                .option("header", "true")
+                .mode("overwrite")
+                .csv(outputPath);
+
+        System.out.println("Saved results to: " + outputPath);
     }
 } // End of class
