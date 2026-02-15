@@ -47,6 +47,30 @@ public class App {
         Dataset<Row> topRatedByGenre = getTopRatedByGenre(explodedGenres);
         saveResult(topRatedByGenre, "output/task2_top_rated_by_genre");
 
+        // ---------------------------------------------------------
+        // Task 4: High-Rated Hidden Gems
+        // ---------------------------------------------------------
+        Dataset<Row> hiddenGems = getHiddenGems(cleanedData);
+        saveResult(hiddenGems, "output/task4_hidden_gems");
+
+        // ---------------------------------------------------------
+        // Task 6: Genre Diversity in Ratings
+        // ---------------------------------------------------------
+        Dataset<Row> genreDiversity = getGenreDiversity(explodedGenres);
+        saveResult(genreDiversity, "output/task6_genre_diversity");
+
+        // ---------------------------------------------------------
+    // Task 8: Comparing TV Shows and Movies (Overall Summary)
+    // ---------------------------------------------------------
+        Dataset<Row> overallSummary = getOverallTvVsMovies(cleanedData);
+        saveResult(overallSummary, "output/task8_tv_vs_movies_summary");
+
+// ---------------------------------------------------------
+// Task 10: Trends in Popularity Over Time
+// ---------------------------------------------------------
+        Dataset<Row> trendsByYear = getTvVsMoviesTrends(cleanedData);
+        saveResult(trendsByYear, "output/task10_tv_vs_movies_trends");
+
         spark.stop();
     } // End of the main method
 
@@ -108,21 +132,12 @@ public class App {
      *        filtered for non-null ratings and non-"Unknown" genres.
      * Output: Top 10 movies per genre, ranked by rating then votes.
      */
+    /**
+     * Task 2: Top Rated Movies by Genre
+     */
     private static Dataset<Row> getTopRatedByGenre(Dataset<Row> explodedGenres) {
-        // 1. FILTER: Keep only Movies
-        Dataset<Row> moviesOnly = explodedGenres
-                .filter(col("type").equalTo("Movie"));
-
-        // 2. DEDUPLICATE: Keep only the highest-rated entry per Title per Genre
-        // This effectively hides "Vagabond" episodes by collapsing them into 1 entry
-        WindowSpec titleDedupeWindow = Window
-                .partitionBy("genre", "title")
-                .orderBy(col("rating").desc(), col("votes").desc());
-
-        Dataset<Row> distinctMovies = moviesOnly
-                .withColumn("title_rank", row_number().over(titleDedupeWindow))
-                .filter(col("title_rank").equalTo(1)) // Keep #1
-                .drop("title_rank");
+        // Reuse the shared logic!
+        Dataset<Row> distinctMovies = getUniqueMoviesPerGenre(explodedGenres);
 
         // 3. RANK: Standard Top 10 Ranking
         WindowSpec genreWindow = Window
@@ -148,4 +163,132 @@ public class App {
 
         System.out.println("Saved results to: " + outputPath);
     }
+    /**
+     * SHARED HELPER: Filters for Movies and Deduplicates by Title/Genre.
+     * Used by Task 2 and Task 6 to ensure consistent, clean data.
+     */
+    private static Dataset<Row> getUniqueMoviesPerGenre(Dataset<Row> explodedGenres) {
+        // 1. FILTER: Keep only Movies
+        Dataset<Row> moviesOnly = explodedGenres
+                .filter(col("type").equalTo("Movie"));
+
+        // 2. DEDUPLICATE: Keep only the highest-rated entry per Title per Genre
+        WindowSpec titleDedupeWindow = Window
+                .partitionBy("genre", "title")
+                .orderBy(col("rating").desc(), col("votes").desc());
+
+        return moviesOnly
+                .withColumn("title_rank", row_number().over(titleDedupeWindow))
+                .filter(col("title_rank").equalTo(1)) // Keep #1
+                .drop("title_rank");
+    }
+    /**
+     * Task 4: High-Rated Hidden Gems
+     * Objective: Identify movies with high ratings (> 8.0) but low votes (< 10,000).
+     */
+    private static Dataset<Row> getHiddenGems(Dataset<Row> df) {
+        return df
+                // 1. Filter: Keep only Movies (exclude TV shows)
+                .filter(col("type").equalTo("Movie"))
+
+                // 2. Filter: Rating > 8.0
+                .filter(col("rating").gt(8.0))
+
+                // 3. Filter: Votes < 10,000
+                .filter(col("votes").lt(10000))
+
+                // 4. Sort: By rating (desc) and votes (desc)
+                .orderBy(col("rating").desc(), col("votes").desc());
+    }
+
+    /**
+     * Task 6: Genre Diversity in Ratings
+     */
+    private static Dataset<Row> getGenreDiversity(Dataset<Row> explodedGenres) {
+        // Reuse the shared logic!
+        Dataset<Row> distinctMovies = getUniqueMoviesPerGenre(explodedGenres);
+
+        // 3. AGGREGATE: Calculate Standard Deviation
+        return distinctMovies
+                .groupBy("genre")
+                .agg(
+                        stddev("rating").alias("rating_stddev"),
+                        count("*").alias("movie_count")
+                )
+                // Optional: Filter small sample sizes
+                .filter(col("movie_count").gt(5))
+                .orderBy(col("rating_stddev").desc());
+    }
+
+    /**
+     * Task 8: Comparing TV Shows and Movies — Overall Summary
+     *
+     * Computes aggregate statistics (average rating, average votes, total votes,
+     * count) for Movies vs TV Shows across the entire dataset.
+     *
+     * Deduplication ensures each unique work is counted once, preventing
+     * inflated vote totals from duplicate rows.
+     */
+    private static Dataset<Row> getOverallTvVsMovies(Dataset<Row> df) {
+        // Filter: need both rating and votes for a meaningful comparison
+        Dataset<Row> valid = df.filter(col("rating").isNotNull().and(col("votes").isNotNull()));
+
+        // Deduplicate by (title, type, year) — keep highest-rated entry
+        WindowSpec dedupWindow = Window
+                .partitionBy("title", "type", "year")
+                .orderBy(col("rating").desc(), col("votes").desc());
+
+        Dataset<Row> distinct = valid
+                .withColumn("rank", row_number().over(dedupWindow))
+                .filter(col("rank").equalTo(1))
+                .drop("rank");
+
+        return distinct
+                .groupBy("type")
+                .agg(
+                        count("*").alias("count"),
+                        avg("rating").alias("avg_rating"),
+                        avg("votes").alias("avg_votes"),
+                        sum("votes").alias("total_votes")
+                )
+                .orderBy("type");
+    }
+
+    /**
+     * Task 10: Comparing TV Shows and Movies — Trends Over Time
+     *
+     * Groups by type and year to reveal how average ratings and total votes
+     * evolved over time for Movies vs TV Shows.
+     *
+     * Filters out rows missing year, rating, or votes so every year shown
+     * has meaningful aggregate values (no null rows in output).
+     */
+    private static Dataset<Row> getTvVsMoviesTrends(Dataset<Row> df) {
+        // Filter: need year + rating + votes for trend analysis
+        Dataset<Row> valid = df.filter(
+                col("year").isNotNull()
+                        .and(col("rating").isNotNull())
+                        .and(col("votes").isNotNull()));
+
+        // Deduplicate by (title, type, year)
+        WindowSpec dedupWindow = Window
+                .partitionBy("title", "type", "year")
+                .orderBy(col("rating").desc(), col("votes").desc());
+
+        Dataset<Row> distinct = valid
+                .withColumn("rank", row_number().over(dedupWindow))
+                .filter(col("rank").equalTo(1))
+                .drop("rank");
+
+        return distinct
+                .groupBy("type", "year")
+                .agg(
+                        avg("rating").alias("avg_rating"),
+                        sum("votes").alias("total_votes"),
+                        count("*").alias("count")
+                )
+                .orderBy(col("year").desc(), col("type"));
+    }
+
+
 } // End of class
