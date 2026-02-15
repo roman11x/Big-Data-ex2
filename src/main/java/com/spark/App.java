@@ -34,6 +34,7 @@ public class App {
         Dataset<Row> cleanedData = performCleaning(rawData);
         cleanedData.cache(); // Cache — branching point for most tasks
         cleanedData.show();
+        saveResult(cleanedData, "output/task1_cleaned_data");
 
         // Stage 3: Exploded genres — shared by Tasks 2 and 6
         // Split comma-separated genres into individual rows, filter out "Unknown"
@@ -205,19 +206,30 @@ public class App {
 
     /**
      * Task 6: Genre Diversity in Ratings
+     *
+     * Measures rating variability across genres using standard deviation.
+     * Additional statistics (mean, min, max, range) provide richer context
+     * for identifying which genres have the most consistent vs. polarizing ratings.
+     *
+     * Input: Exploded genres dataset, filtered to unique movies per genre
+     *        (via getUniqueMoviesPerGenre) to avoid duplicate titles inflating stats.
+     * Output: One row per genre with diversity metrics, sorted by stddev descending.
+     *         Genres with fewer than 5 movies are excluded for statistical reliability.
      */
     private static Dataset<Row> getGenreDiversity(Dataset<Row> explodedGenres) {
-        // Reuse the shared logic!
         Dataset<Row> distinctMovies = getUniqueMoviesPerGenre(explodedGenres);
 
-        // 3. AGGREGATE: Calculate Standard Deviation
         return distinctMovies
                 .groupBy("genre")
                 .agg(
+                        count("*").alias("movie_count"),
+                        avg("rating").alias("avg_rating"),
                         stddev("rating").alias("rating_stddev"),
-                        count("*").alias("movie_count")
+                        min("rating").alias("min_rating"),
+                        max("rating").alias("max_rating"),
+                        // Range = max - min; a simple complement to stddev
+                        expr("max(rating) - min(rating)").alias("rating_range")
                 )
-                // Optional: Filter small sample sizes
                 .filter(col("movie_count").gt(5))
                 .orderBy(col("rating_stddev").desc());
     }
@@ -251,7 +263,7 @@ public class App {
      * Task 8: Comparing TV Shows and Movies — Overall Summary
      *
      * Aggregates across the entire dataset to compare Movies vs TV Shows
-     * on average rating, average votes per title, and total votes.
+     * on average rating, rating spread, average votes per title, and total votes.
      *
      * Input: Pre-filtered and deduplicated dataset (from getDeduplicatedWorks).
      * Output: One row per type with aggregate statistics.
@@ -262,8 +274,11 @@ public class App {
                 .agg(
                         count("*").alias("count"),
                         avg("rating").alias("avg_rating"),
+                        stddev("rating").alias("stddev_rating"),
                         avg("votes").alias("avg_votes"),
-                        sum("votes").alias("total_votes")
+                        sum("votes").alias("total_votes"),
+                        min("rating").alias("min_rating"),
+                        max("rating").alias("max_rating")
                 )
                 .orderBy("type");
     }
@@ -276,18 +291,19 @@ public class App {
      *
      * Input: Pre-filtered and deduplicated dataset (from getDeduplicatedWorks).
      * Output: One row per (type, year) with aggregate statistics, sorted by
-     *         year descending to highlight recent trends first.
+     *         year ascending to show chronological trends.
      */
     private static Dataset<Row> getTvVsMoviesTrends(Dataset<Row> deduped) {
         return deduped
                 .filter(col("year").isNotNull())
                 .groupBy("type", "year")
                 .agg(
+                        count("*").alias("count"),
                         avg("rating").alias("avg_rating"),
-                        sum("votes").alias("total_votes"),
-                        count("*").alias("count")
+                        avg("votes").alias("avg_votes"),
+                        sum("votes").alias("total_votes")
                 )
-                .orderBy(col("year").desc(), col("type"));
+                .orderBy(col("year").asc(), col("type"));
     }
 
 
