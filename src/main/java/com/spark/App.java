@@ -1,17 +1,39 @@
 package com.spark;
 
+import java.util.Arrays;
+import java.util.List;
+
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.expressions.Window;
 import org.apache.spark.sql.expressions.WindowSpec;
-import static org.apache.spark.sql.functions.*;
+import static org.apache.spark.sql.functions.avg;
+import static org.apache.spark.sql.functions.col;
+import static org.apache.spark.sql.functions.count;
+import static org.apache.spark.sql.functions.explode;
+import static org.apache.spark.sql.functions.expr;
+import static org.apache.spark.sql.functions.lit;
+import static org.apache.spark.sql.functions.lower;
+import static org.apache.spark.sql.functions.max;
+import static org.apache.spark.sql.functions.min;
+import static org.apache.spark.sql.functions.not;
+import static org.apache.spark.sql.functions.regexp_extract;
+import static org.apache.spark.sql.functions.regexp_replace;
+import static org.apache.spark.sql.functions.row_number;
+import static org.apache.spark.sql.functions.split;
+import static org.apache.spark.sql.functions.stddev;
+import static org.apache.spark.sql.functions.sum;
+import static org.apache.spark.sql.functions.when;
 
 public class App {
 
     // Path to the IMDB dataset CSV file
     public static final String FILE_PATH = "src/main/resources/IMDB.csv";
-
+   // Predefined Stop-words for task 5
+        public static final List<String> stopWords = Arrays.asList(
+                "the", "a", "an", "and", "or", "in", "on", "at", "to", "for", "with", "is", "of", "it"
+        );
     public static void main(String[] args) {
         SparkSession spark = SparkSession.builder()
                 .appName("IMDB_Analytics")
@@ -41,8 +63,9 @@ public class App {
         // so subsequent tasks reuse it instead of recomputing from the CSV.
         //
         // Cache points:
-        //   cleanedData     → used by Tasks 2, 4, 6, 8, 10 (root branch)
+        //   cleanedData     → used by Tasks 2, 3, 4, 5, 7, 8 (root branch)
         //   explodedGenres  → used by Tasks 2 and 6 (genre-based branch)
+        //   certificationRating → used by task 7 and 9 
         //   validRatedWorks → used by Tasks 8 and 10 (comparison branch)
         // =====================================================================
 
@@ -69,6 +92,11 @@ public class App {
         // ---------------------------------------------------------
         Dataset<Row> topRatedByGenre = getTopRatedByGenre(explodedGenres);
         saveResult(topRatedByGenre, "output/task2_top_rated_by_genre");
+        // ---------------------------------------------------------
+        // Task 3: Actor Collaboration Network
+        // ---------------------------------------------------------
+        Dataset<Row> actorCollaboration = getActorCollaboration(cleanedData);
+        saveResult(actorCollaboration,"output/task3_actor_collaboration_network");
 
         // ---------------------------------------------------------
         // Task 4: High-Rated Hidden Gems
@@ -77,11 +105,23 @@ public class App {
         saveResult(hiddenGems, "output/task4_hidden_gems");
 
         // ---------------------------------------------------------
+        // Task 5: Word Frequency in Movie Titles
+        // ---------------------------------------------------------
+        Dataset<Row> wordFrequencyInTitles = getWordFrequencyInTitles(cleanedData);
+        saveResult(wordFrequencyInTitles,"output/task5_word_frequency");
+        // ---------------------------------------------------------
         // Task 6: Genre Diversity in Ratings
         // ---------------------------------------------------------
         Dataset<Row> genreDiversity = getGenreDiversity(explodedGenres);
         saveResult(genreDiversity, "output/task6_genre_diversity");
-
+        
+        // ---------------------------------------------------------
+        // Task 7: Certification Rating Distribution
+        // ---------------------------------------------------------
+        Dataset<Row> certificationRating = getCertificationRating(cleanedData);
+        // Task 9 is identical to Task 7 there for We will cashe the dataset to avoid redundancy compute
+        saveResult(certificationRating,"output/task7_certification_rating");
+        certificationRating.cache();
         // ---------------------------------------------------------
         // Shared Stage: Deduplicated works (used by Tasks 8 and 10)
         // ---------------------------------------------------------
@@ -89,13 +129,16 @@ public class App {
         // avoiding redundant shuffles across both tasks.
         Dataset<Row> validRatedWorks = getDeduplicatedWorks(cleanedData);
         validRatedWorks.cache(); // Cache — branching point for Tasks 8 & 10
-
+        
         // ---------------------------------------------------------
         // Task 8: Comparing TV Shows and Movies — Overall Summary
         // ---------------------------------------------------------
         Dataset<Row> overallSummary = getOverallTvVsMovies(validRatedWorks);
         saveResult(overallSummary, "output/task8_tv_vs_movies_summary");
-
+        // ---------------------------------------------------------
+        // Task 9: Certification Rating Distribution
+        // ---------------------------------------------------------
+        saveResult(certificationRating,"output/task9_certification_rating");
         // ---------------------------------------------------------
         // Task 10: Comparing TV Shows and Movies — Trends Over Time
         // ---------------------------------------------------------
@@ -180,6 +223,38 @@ public class App {
                 .select("genre", "rank", "title", "rating", "votes", "year")
                 .orderBy("genre", "rank");
     }
+     /**
+     * Task 3: Actor Collaboration Network
+     *
+     * Identifies Actor pairs collaboration in movies.
+     * map the pairs and count the total collaborations of a pair.
+     * Output: Dataset of actor pairs and number of collaboration between them.
+     */
+    private static Dataset<Row> getActorCollaboration(Dataset<Row> df) {
+
+        // 2. Clean the string format
+        // We use regexp_replace to strip out [, ], ', and " 
+        Dataset<Row> actorMovieMap = df
+            .withColumn("stars_cleaned", regexp_replace(col("stars"), "[\\[\\]' \"]", "")) 
+            .withColumn("actor", explode(split(col("stars_cleaned"), ",")))
+            .select("title", "actor");
+
+        // 3. Self-Join on the movie title
+        // Filtering (a.actor < b.actor) handles deduplication and self-collaboration 
+        Dataset<Row> collaborations = actorMovieMap.as("a")
+            .join(actorMovieMap.as("b"), "title")
+            .where(col("a.actor").lt(col("b.actor")))
+            .select(
+                col("a.actor").as("Actor1"),
+                col("b.actor").as("Actor2")
+            );
+
+        // 4. Aggregate to find total collaborations
+        return collaborations.groupBy("Actor1", "Actor2")
+            .count()
+            .withColumnRenamed("count", "collaboration_count")
+            .orderBy(col("collaboration_count").desc());
+        }
 
     /**
      * Task 4: High-Rated Hidden Gems
@@ -195,6 +270,32 @@ public class App {
                 .filter(col("votes").lt(10000))
                 .orderBy(col("rating").desc(), col("votes").desc());
     }
+
+    /**
+     * Task 5: Word-Frequency in titles
+     *
+     * Map Words from title col excluding common stop-words.
+     * And preforming word count.
+     * Output: Top 20 most frequent Words
+     */
+    private static Dataset<Row> getWordFrequencyInTitles(Dataset<Row> df){
+        
+        // 1. Process words: Lowercase, Split, and Explode
+        Dataset<Row> wordsDf = df
+                .withColumn("word", explode(split(lower(col("title")), "\\s+"))) // Split by whitespace 
+                // 2. Filter: Remove stop words and empty strings 
+                .where(not(col("word").isin(stopWords.toArray())))
+                .where(col("word").notEqual(""))
+                // Remove special characters from words (punctuation)
+                .withColumn("word", regexp_replace(col("word"), "[^a-zA-Z]", ""));
+
+        // 3. Aggregate: Count, Rename, and take Top 20 
+        return wordsDf.groupBy("word")
+            .count()
+            .withColumnRenamed("count", "word_frequency")
+            .orderBy(col("word_frequency").desc())
+            .limit(20);
+        }
 
     /**
      * Task 6: Genre Diversity in Ratings
@@ -225,6 +326,28 @@ public class App {
                 .orderBy(col("rating_stddev").desc());
     }
 
+    /**
+     * Task 7: Certification Rating Distribution
+     *
+     * Analyzes the frequency of different content certifications (e.g., PG-13, R, TV-MA)  
+     * It identifies the certification with the 
+     * highest average rating to determine which audience certification 
+     * tend to be better received by users.
+     * Input: Cleaned IMDB dataset.
+     * Output: A Dataset containing movie counts and average ratings per certification type,
+     * sorted by average rating in descending order to highlight top-rated certification.
+     */
+    private static Dataset<Row> getCertificationRating(Dataset<Row> df) {
+      
+        // 1. Perform Grouping and Aggregation
+        return df
+                .groupBy("certificate")
+                .agg(
+                        count("certificate").alias("movies_certificate_count"), // Step 1: Count movies per type 
+                        avg("rating").alias("certificate_avg_rating")            // Step 2: Avg rating
+                )
+                .orderBy(col("certificate_avg_rating").desc()); // Sort to find highest average 
+        }
     /**
      * Task 8: Comparing TV Shows and Movies — Overall Summary
      *
