@@ -24,16 +24,19 @@ import static org.apache.spark.sql.functions.row_number;
 import static org.apache.spark.sql.functions.split;
 import static org.apache.spark.sql.functions.stddev;
 import static org.apache.spark.sql.functions.sum;
+import static org.apache.spark.sql.functions.trim;
 import static org.apache.spark.sql.functions.when;
 
 public class App {
 
     // Path to the IMDB dataset CSV file
     public static final String FILE_PATH = "src/main/resources/IMDB.csv";
-   // Predefined Stop-words for task 5
-        public static final List<String> stopWords = Arrays.asList(
-                "the", "a", "an", "and", "or", "in", "on", "at", "to", "for", "with", "is", "of", "it"
-        );
+
+    // Predefined stop words for Task 5
+    public static final List<String> STOP_WORDS = Arrays.asList(
+            "the", "a", "an", "and", "or", "in", "on", "at", "to", "for", "with", "is", "of", "it"
+    );
+
     public static void main(String[] args) {
         SparkSession spark = SparkSession.builder()
                 .appName("IMDB_Analytics")
@@ -63,9 +66,9 @@ public class App {
         // so subsequent tasks reuse it instead of recomputing from the CSV.
         //
         // Cache points:
-        //   cleanedData     → used by Tasks 2, 3, 4, 5, 7, 8 (root branch)
+        //   cleanedData     → used by Tasks 2, 3, 4, 5, 6, 7, 8, 9, 10 (root branch)
         //   explodedGenres  → used by Tasks 2 and 6 (genre-based branch)
-        //   certificationRating → used by task 7 and 9 
+        //   certRatings     → used by Tasks 7 and 9 (identical output, saved twice)
         //   validRatedWorks → used by Tasks 8 and 10 (comparison branch)
         // =====================================================================
 
@@ -92,11 +95,12 @@ public class App {
         // ---------------------------------------------------------
         Dataset<Row> topRatedByGenre = getTopRatedByGenre(explodedGenres);
         saveResult(topRatedByGenre, "output/task2_top_rated_by_genre");
+
         // ---------------------------------------------------------
         // Task 3: Actor Collaboration Network
         // ---------------------------------------------------------
         Dataset<Row> actorCollaboration = getActorCollaboration(cleanedData);
-        saveResult(actorCollaboration,"output/task3_actor_collaboration_network");
+        saveResult(actorCollaboration, "output/task3_actor_collaboration_network");
 
         // ---------------------------------------------------------
         // Task 4: High-Rated Hidden Gems
@@ -108,20 +112,24 @@ public class App {
         // Task 5: Word Frequency in Movie Titles
         // ---------------------------------------------------------
         Dataset<Row> wordFrequencyInTitles = getWordFrequencyInTitles(cleanedData);
-        saveResult(wordFrequencyInTitles,"output/task5_word_frequency");
+        saveResult(wordFrequencyInTitles, "output/task5_word_frequency");
+
         // ---------------------------------------------------------
         // Task 6: Genre Diversity in Ratings
         // ---------------------------------------------------------
         Dataset<Row> genreDiversity = getGenreDiversity(explodedGenres);
         saveResult(genreDiversity, "output/task6_genre_diversity");
-        
+
         // ---------------------------------------------------------
-        // Task 7: Certification Rating Distribution
+        // Tasks 7 & 9: Certification Rating Distribution
         // ---------------------------------------------------------
-        Dataset<Row> certificationRating = getCertificationRating(cleanedData);
-        // Task 9 is identical to Task 7 there for We will cashe the dataset to avoid redundancy compute
-        saveResult(certificationRating,"output/task7_certification_rating");
-        certificationRating.cache();
+        // Tasks 7 and 9 have identical objectives, therefore we compute
+        // once and cache to avoid redundant computation.
+        Dataset<Row> certRatings = getCertificationRating(cleanedData);
+        certRatings.cache(); // Cache BEFORE first action
+        saveResult(certRatings, "output/task7_certification_rating");
+        saveResult(certRatings, "output/task9_certification_rating");
+
         // ---------------------------------------------------------
         // Shared Stage: Deduplicated works (used by Tasks 8 and 10)
         // ---------------------------------------------------------
@@ -129,16 +137,13 @@ public class App {
         // avoiding redundant shuffles across both tasks.
         Dataset<Row> validRatedWorks = getDeduplicatedWorks(cleanedData);
         validRatedWorks.cache(); // Cache — branching point for Tasks 8 & 10
-        
+
         // ---------------------------------------------------------
         // Task 8: Comparing TV Shows and Movies — Overall Summary
         // ---------------------------------------------------------
         Dataset<Row> overallSummary = getOverallTvVsMovies(validRatedWorks);
         saveResult(overallSummary, "output/task8_tv_vs_movies_summary");
-        // ---------------------------------------------------------
-        // Task 9: Certification Rating Distribution
-        // ---------------------------------------------------------
-        saveResult(certificationRating,"output/task9_certification_rating");
+
         // ---------------------------------------------------------
         // Task 10: Comparing TV Shows and Movies — Trends Over Time
         // ---------------------------------------------------------
@@ -163,7 +168,7 @@ public class App {
      *   needs stars, Task 5 only needs titles).
      * - Convert votes from comma-formatted string to integer where present.
      * - Derive a "type" column (TV Show vs Movie) from the year column BEFORE
-     *   extracting the numeric year, since the range pattern (e.g. "2015–2022")
+     *   extracting the numeric year, since the range pattern (e.g. "2015-2022")
      *   is what distinguishes TV shows from movies.
      * - Improved: Also detects TV Shows if the certificate starts with "TV"
      *   (e.g. "TV-MA"), which catches miniseries that lack a year range.
@@ -182,17 +187,17 @@ public class App {
 
                 // Robust type detection:
                 // A title is classified as a TV Show if:
-                //   1. The year contains an en-dash "–" (e.g. "2015–2022"), OR
+                //   1. The year contains an en-dash (e.g. "2015-2022"), OR
                 //   2. The certificate starts with "TV" (e.g. "TV-MA")
                 // This dual check catches miniseries that have a single year
                 // but a TV-prefixed certificate.
                 .withColumn("type",
-                        when(col("year").contains("\u2013")       // \u2013 = en-dash "–"
+                        when(col("year").contains("\u2013")       // \u2013 = en-dash
                                         .or(col("certificate").startsWith("TV")),
                                 lit("TV Show"))
                                 .otherwise(lit("Movie")))
 
-                // Extract the first numeric year from the string (e.g. "2015" from "(2015–2022)")
+                // Extract the first numeric year from the string (e.g. "2015" from "(2015-2022)")
                 .withColumn("year", regexp_extract(col("year"), "(\\d+)", 1))
                 .withColumn("year",
                         when(col("year").equalTo(""), lit(null).cast("int"))
@@ -223,38 +228,56 @@ public class App {
                 .select("genre", "rank", "title", "rating", "votes", "year")
                 .orderBy("genre", "rank");
     }
-     /**
+
+    /**
      * Task 3: Actor Collaboration Network
      *
-     * Identifies Actor pairs collaboration in movies.
-     * map the pairs and count the total collaborations of a pair.
-     * Output: Dataset of actor pairs and number of collaboration between them.
+     * Analyzes actor collaborations by creating a co-occurrence network.
+     * Parses the stars column to extract individual actor names, generates
+     * pairwise combinations for each title, and counts collaborations.
+     *
+     * The stars column has two formats:
+     *   1. Clean:         ['Actor1, ', 'Actor2, ', 'Actor3']
+     *   2. With director: ['Director', '| ', '    Stars:', 'Actor1, ', 'Actor2']
+     * We strip brackets/quotes, split by comma, trim whitespace, then filter
+     * out metadata entries ('|', 'Stars:') to keep only actor names.
+     *
+     * The self-join with (Actor1 < Actor2) ensures each pair is counted once
+     * and self-pairings are excluded.
+     *
+     * Output: Actor pairs with collaboration count, sorted by most collaborations.
      */
     private static Dataset<Row> getActorCollaboration(Dataset<Row> df) {
-
-        // 2. Clean the string format
-        // We use regexp_replace to strip out [, ], ', and " 
+        // 1. Parse and clean the stars column
         Dataset<Row> actorMovieMap = df
-            .withColumn("stars_cleaned", regexp_replace(col("stars"), "[\\[\\]' \"]", "")) 
-            .withColumn("actor", explode(split(col("stars_cleaned"), ",")))
-            .select("title", "actor");
+                .filter(col("stars").isNotNull())
+                .withColumn("stars_cleaned", regexp_replace(col("stars"), "[\\[\\]'\"]", ""))
+                .withColumn("actor", explode(split(col("stars_cleaned"), ",")))
+                .withColumn("actor", trim(col("actor")))
+                // Filter out empty strings and metadata entries (not actor names)
+                .filter(col("actor").notEqual(""))
+                .filter(not(col("actor").equalTo("|")))
+                .filter(not(col("actor").startsWith("Stars")))
+                .filter(not(col("actor").contains("|")))
+                .select("title", "actor");
 
-        // 3. Self-Join on the movie title
-        // Filtering (a.actor < b.actor) handles deduplication and self-collaboration 
+        // 2. Self-join on title to generate pairwise actor combinations
+        // The (a.actor < b.actor) condition ensures each pair appears once
+        // and prevents self-pairing.
         Dataset<Row> collaborations = actorMovieMap.as("a")
-            .join(actorMovieMap.as("b"), "title")
-            .where(col("a.actor").lt(col("b.actor")))
-            .select(
-                col("a.actor").as("Actor1"),
-                col("b.actor").as("Actor2")
-            );
+                .join(actorMovieMap.as("b"), "title")
+                .where(col("a.actor").lt(col("b.actor")))
+                .select(
+                        col("a.actor").as("Actor1"),
+                        col("b.actor").as("Actor2")
+                );
 
-        // 4. Aggregate to find total collaborations
+        // 3. Count collaborations per pair
         return collaborations.groupBy("Actor1", "Actor2")
-            .count()
-            .withColumnRenamed("count", "collaboration_count")
-            .orderBy(col("collaboration_count").desc());
-        }
+                .count()
+                .withColumnRenamed("count", "collaboration_count")
+                .orderBy(col("collaboration_count").desc());
+    }
 
     /**
      * Task 4: High-Rated Hidden Gems
@@ -272,30 +295,33 @@ public class App {
     }
 
     /**
-     * Task 5: Word-Frequency in titles
+     * Task 5: Word Frequency in Movie Titles
      *
-     * Map Words from title col excluding common stop-words.
-     * And preforming word count.
-     * Output: Top 20 most frequent Words
+     * Performs a word count on the title column, excluding common stop words.
+     * Titles are lowercased and split by whitespace, then punctuation is removed
+     * BEFORE filtering stop words to ensure accurate matching (e.g. "love," is
+     * cleaned to "love" before the stop word check, not after).
+     *
+     * Output: Top 20 most frequent words in movie titles.
      */
-    private static Dataset<Row> getWordFrequencyInTitles(Dataset<Row> df){
-        
-        // 1. Process words: Lowercase, Split, and Explode
+    private static Dataset<Row> getWordFrequencyInTitles(Dataset<Row> df) {
+        // 1. Lowercase, split, and explode titles into individual words
         Dataset<Row> wordsDf = df
-                .withColumn("word", explode(split(lower(col("title")), "\\s+"))) // Split by whitespace 
-                // 2. Filter: Remove stop words and empty strings 
-                .where(not(col("word").isin(stopWords.toArray())))
-                .where(col("word").notEqual(""))
-                // Remove special characters from words (punctuation)
-                .withColumn("word", regexp_replace(col("word"), "[^a-zA-Z]", ""));
+                .filter(col("title").isNotNull())
+                .withColumn("word", explode(split(lower(col("title")), "\\s+")))
+                // 2. Clean punctuation BEFORE filtering stop words
+                .withColumn("word", regexp_replace(col("word"), "[^a-zA-Z]", ""))
+                .filter(col("word").notEqual(""))
+                // 3. Remove stop words
+                .filter(not(col("word").isin(STOP_WORDS.toArray())));
 
-        // 3. Aggregate: Count, Rename, and take Top 20 
+        // 4. Count word frequencies and return Top 20
         return wordsDf.groupBy("word")
-            .count()
-            .withColumnRenamed("count", "word_frequency")
-            .orderBy(col("word_frequency").desc())
-            .limit(20);
-        }
+                .count()
+                .withColumnRenamed("count", "word_frequency")
+                .orderBy(col("word_frequency").desc())
+                .limit(20);
+    }
 
     /**
      * Task 6: Genre Diversity in Ratings
@@ -327,27 +353,29 @@ public class App {
     }
 
     /**
-     * Task 7: Certification Rating Distribution
+     * Tasks 7 & 9: Certification Rating Distribution
      *
-     * Analyzes the frequency of different content certifications (e.g., PG-13, R, TV-MA)  
-     * It identifies the certification with the 
-     * highest average rating to determine which audience certification 
-     * tend to be better received by users.
+     * Analyzes the frequency of different content certifications (e.g., PG-13, R, TV-MA)
+     * and calculates the average rating per certification type.
+     * Filters out rows with unknown certificates and null ratings for accuracy.
+     * Sorted by average rating descending to highlight which certifications
+     * tend to be best received by audiences.
+     *
      * Input: Cleaned IMDB dataset.
-     * Output: A Dataset containing movie counts and average ratings per certification type,
-     * sorted by average rating in descending order to highlight top-rated certification.
+     * Output: One row per certification with movie count and average rating.
      */
     private static Dataset<Row> getCertificationRating(Dataset<Row> df) {
-      
-        // 1. Perform Grouping and Aggregation
         return df
+                .filter(col("rating").isNotNull())
+                .filter(not(col("certificate").equalTo("Unknown")))
                 .groupBy("certificate")
                 .agg(
-                        count("certificate").alias("movies_certificate_count"), // Step 1: Count movies per type 
-                        avg("rating").alias("certificate_avg_rating")            // Step 2: Avg rating
+                        count("certificate").alias("movies_certificate_count"),
+                        avg("rating").alias("certificate_avg_rating")
                 )
-                .orderBy(col("certificate_avg_rating").desc()); // Sort to find highest average 
-        }
+                .orderBy(col("certificate_avg_rating").desc());
+    }
+
     /**
      * Task 8: Comparing TV Shows and Movies — Overall Summary
      *
