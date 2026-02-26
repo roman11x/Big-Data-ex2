@@ -242,6 +242,10 @@ public class App {
      * We strip brackets/quotes, split by comma, trim whitespace, then filter
      * out metadata entries ('|', 'Stars:') to keep only actor names.
      *
+     * Deduplication by (title, actor) ensures that multi-episode shows sharing
+     * the same title (e.g. 92 "Top Gear" episodes) count as one collaboration
+     * per unique title, not one per episode.
+     *
      * The self-join with (Actor1 < Actor2) ensures each pair is counted once
      * and self-pairings are excluded.
      *
@@ -257,9 +261,12 @@ public class App {
                 // Filter out empty strings and metadata entries (not actor names)
                 .filter(col("actor").notEqual(""))
                 .filter(not(col("actor").equalTo("|")))
-                .filter(not(col("actor").startsWith("Stars")))
+                .filter(not(col("actor").startsWith("Star")))
                 .filter(not(col("actor").contains("|")))
-                .select("title", "actor");
+                .select("title", "actor")
+                // Deduplicate: count each actor once per title, so multi-episode
+                // shows (e.g. 92 "Top Gear" rows) don't inflate pair counts
+                .dropDuplicates("title", "actor");
 
         // 2. Self-join on title to generate pairwise actor combinations
         // The (a.actor < b.actor) condition ensures each pair appears once
